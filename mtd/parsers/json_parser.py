@@ -53,43 +53,48 @@ class Parser(BaseParser):
         ]
 
     def fill_listof_entry_template(self, listof_dict: dict, entry, convert_function) -> list:
-        listof = [match for match in convert_function(entry, listof_dict['listof'])]
+        # Run the query
+        listof = convert_function(entry, listof_dict['listof'])
         if not listof:
             return listof
         new_els = []
-        if isinstance(listof_dict['value'], dict) and "listof" in listof_dict['value']:
-            listof_dict['listof'] = listof_dict['value']['listof']
-            listof_dict['value'] = listof_dict['value']['value']
-            for el in listof:
-                json_expr = self.get_matcher(f"{el.full_path}")
-                items = [match.value for match in json_expr.find(entry)][0]
-                for item in items:
-                    i = items.index(item)
-                    item_json_expr = self.get_matcher(f"{json_expr}.[{i}]")
-                    new_entry = [match.value for match in item_json_expr.find(entry)]
-                    el = self.fill_listof_entry_template(listof_dict, new_entry, convert_function)
-                    new_els.append(el)
-        elif isinstance(listof_dict['value'], dict):
-            items = [match.value for match in listof][0]
-            if isinstance(items, dict):
-                items = [items]
-            json_expr = listof[0].full_path
-            for el in items:
-                i = items.index(el)
-                new_el = {}
-                for k, v in listof_dict['value'].items():
-                    new_json_expr = self.get_matcher(f"{json_expr}.[{i}].[{v.strip()}]")
-                    new_el[k] = self.validate_type(k, [match.value for match in new_json_expr.find(entry)])
-                new_els.append(new_el)
+        if "value" in listof_dict:
+            # Legacy (somewhat bogus) behaviour, which assumes an extra list somewhere
+            if isinstance(listof_dict['value'], dict) and "listof" in listof_dict['value']:
+                # Recurse one level down (apparently no more than this)
+                listof_dict['listof'] = listof_dict['value']['listof']
+                listof_dict['value'] = listof_dict['value']['value']
+                for el in listof:
+                    items = el.value
+                    if isinstance(items, dict):
+                        items = [items]
+                    for item in items:
+                        new_el = self.fill_listof_entry_template(listof_dict, item, convert_function)
+                        new_els.append(new_el)
+            elif isinstance(listof_dict['value'], dict):
+                # Create outputs with dictionaries of queries from "value" on results
+                for el in listof:
+                    items = el.value
+                    if isinstance(items, dict):
+                        items = [items]
+                    for item in items:
+                        new_el = {}
+                        for k, v in listof_dict['value'].items():
+                            new_json_expr = self.get_matcher(v.strip())
+                            new_el[k] = self.validate_type(k, [match.value for match in new_json_expr.find(item)])
+                        new_els.append(new_el)
+            else:
+                # Do ... something, totally ignoring the "value" key
+                for el in listof:
+                    items = el.value
+                    if isinstance(items, dict):
+                        items = [items]
+                    for item in items:
+                        new_els.append(item)
         else:
+            # New mode, just give me the list of items THAT I ASKED FOR
             for el in listof:
-                json_expr = self.get_matcher(f"{el.full_path}")
-                items = [match.value for match in json_expr.find(entry)][0]
-                for item in items:
-                    i = items.index(item)
-                    new_json_expr = self.get_matcher(f"{json_expr}.[{i}]")
-                    new_el = [match.value for match in new_json_expr.find(entry)][0]
-                    new_els.append(new_el)
+                new_els.append(el.value)
 
         return new_els
 
