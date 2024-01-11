@@ -66,7 +66,7 @@ class Transducer():
         if t_name_or_path in self.available_transducers:
             mapping = Mapping(**self.available_transducers[t_name_or_path])
         elif path.endswith('.yaml'):
-            mapping = Mapping(self.return_transducer_path(t_name_or_path))
+            mapping = Mapping.load_mapping_from_path(self.return_transducer_path(t_name_or_path))
         else:
             mapping = Mapping(load_from_file(self.return_transducer_path(t_name_or_path)))
         return G2PTransducer(mapping)
@@ -100,17 +100,17 @@ class Transducer():
                             # prioritize yaml
                             if path.endswith('yaml') or globs.index(path) == len(globs) - 1:
                                 fn = self.create_transducer_mapping(path)
-                                mapping = [{x['in']: x['out']} for x in fn.mapping()]
+                                mapping = [{x.rule_input: x.rule_output} for x in fn.mapping.rules]
                                 break
                     else:
                         # return the first
                         fn = self.create_transducer_mapping(globs[0])  
-                        mapping = [{x['in']: x['out']} for x in fn.mapping()] 
+                        mapping = [{x.rule_input: x.rule_output} for x in fn.mapping.rules] 
                 else:
                     raise TransducerNotFoundError(t_name_or_path)     
             else:       
                 fn = self.create_transducer_mapping(t)
-                mapping = [{x['in']: x['out']} for x in fn.mapping()]
+                mapping = [{x.rule_input: x.rule_output} for x in fn.mapping.rules]
             name = self.return_mapping_name(t)
             fns[name] = mapping
         comp_name = self.return_mapping_name(t_path, True)
@@ -125,7 +125,7 @@ class Transducer():
         if t_name_or_path in self.available_transducers:
             mapping = Mapping(**self.available_transducers[t_name_or_path])
         elif path.endswith('yaml'):
-            mapping = Mapping(self.return_transducer_path(t_name_or_path))
+            mapping = Mapping.load_mapping_from_path(self.return_transducer_path(t_name_or_path))
         else:
             mapping = Mapping(load_from_file(self.return_transducer_path(t_name_or_path)))
         transducer = G2PTransducer(mapping)
@@ -224,7 +224,7 @@ class Transducer():
                 elif not function.startswith('lambda'):
                     name = self.return_mapping_name(function)
                     transducer = self.create_transducer_mapping(function)
-                    mapping = [{x['in']: x['out']} for x in transducer.mapping()]
+                    mapping = [{x.rule_input: x.rule_output} for x in transducer.mapping.rules]
                     mapping_configs[name] = mapping
         return mapping_configs
 
@@ -264,14 +264,14 @@ class Transducer():
         else:
             path = self.return_transducer_path(t_name_or_path)
             if not path and t_name_or_path in self.available_transducers:
-                mapping = Mapping(**self.available_transducers[t_name_or_path])
+                cors = Mapping(**self.available_transducers[t_name_or_path])
             elif path.endswith('yaml'):
-                cors = Mapping(self.return_transducer_path(t_name_or_path))
+                cors = Mapping.load_mapping_from_path(self.return_transducer_path(t_name_or_path))
             else:
                 cors = Mapping(load_from_file(self.return_transducer_path(t_name_or_path)))
-            keys = sorted([cor['in'] for cor in cors.mapping], key=len, reverse=True)
+            keys = sorted([cor.rule_input for cor in cors.mapping.rules], key=len, reverse=True)
             # js_cors = [{k:v for k,v in cor} for cor in cors]
-            js_cors = [{cor['in']: cor['out']} for cor in cors.mapping]
+            js_cors = [{cor.rule_input: cor.rule_output} for cor in cors.mapping.rules]
             js_cors = dict(ChainMap(*js_cors)) 
             return transducer_js_template.format(name=name, cors=js_cors, keys=keys)
         
